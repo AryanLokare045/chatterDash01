@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Controlled Quiz</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@300..700&family=Fira+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Fira Sans", sans-serif;
+        font-weight: 300;
+        font-style: normal;
+        background-color: #282c34;
+        color: #fff;
+        text-align: center;
+        padding: 50px;
+        position: relative;
+        min-height: 100vh;
+      }
+
+      h1 {
+        color: #ffffff;
+        margin-bottom: 20px;
+      }
+
+      select,
+      #startQuiz,
+      #repeatQuiz,
+      #endQuiz {
+        padding: 10px;
+        font-size: 16px;
+        margin: 10px;
+      }
+
+      #startQuiz,
+      #repeatQuiz,
+      #endQuiz {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #startQuiz:hover,
+      #repeatQuiz:hover,
+      #endQuiz:hover {
+        background-color: #2980b9;
+      }
+
+      #question {
+        font-size: 24px;
+        margin: 20px 0;
+      }
+
+      #result,
+      #userAnswer,
+      #correctAnswer,
+      #explanation {
+        font-size: 20px;
+        margin: 10px 0;
+      }
+
+      #explanation {
+        font-size: 16px;
+        color: #e74c3c;
+      }
+
+      #userAnswer {
+        font-style: italic;
+        color: #2980b9;
+      }
+
+      #buttons {
+        display: none;
+      }
+
+      header {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px 0;
+        width: 100%;
+        position: relative;
+        z-index: 1000;
+        border-radius: 10px;
+      }
+
+      header nav {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      header nav a {
+        color: white;
+        padding: 10px 20px;
+        cursor: pointer;
+      }
+
+      header nav a:hover {
+        cursor: pointer;
+      }
+
+      .logo {
+        font-size: 34px;
+        margin-right: 50px;
+        margin-left: 20px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        width: 100vh;
+        margin: 0 auto;
+        margin-top: 20px;
+        margin-bottom: 20px;
+      }
+
+      footer {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px 0;
+        width: 100%;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 50px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <span class="logo">ChatterDash</span>
+        <a href="index.html">Main Page</a>
+        <a href="about.html">About Page</a>
+      </nav>
+    </header>
+    <div class="container">
+      <h1>ChatterDash Voice Controlled Quiz</h1>
+
+      <label for="quizCategory">Choose a quiz category:</label>
+      <select id="quizCategory">
+        <option value="coding">Coding</option>
+        <option value="carpentry">Carpentry</option>
+        <option value="healthcare">Healthcare</option>
+      </select>
+
+      <button id="startQuiz">Start Quiz</button>
+      <div id="question"></div>
+      <div id="userAnswer"></div>
+      <div id="result"></div>
+      <div id="correctAnswer"></div>
+      <div id="explanation"></div>
+
+      <div id="buttons">
+        <button id="repeatQuiz">Repeat Quiz</button>
+        <button id="endQuiz">End Quiz</button>
+      </div>
+    </div>
+
+    <footer>
+      <p>ChatterDash &copy; All rights reserved.</p>
+    </footer>
+
+    <script>
+      let questions = [];
+      let currentQuestionIndex = 0;
+
+      // Function to load questions based on the selected category
+      async function loadQuestions(category) {
+        try {
+          const response = await fetch(`/get_questions?category=${category}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch questions");
+          }
+          questions = await response.json();
+          if (questions.length === 0) {
+            alert("No questions available for this category!");
+            return;
+          }
+          shuffleQuestions();
+        } catch (error) {
+          console.error("Error loading questions:", error);
+          alert("There was an error loading the quiz. Please try again later.");
+        }
+      }
+
+      // Shuffle questions array (Fisher-Yates Shuffle)
+      function shuffleQuestions() {
+        for (let i = questions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [questions[i], questions[j]] = [questions[j], questions[i]];
+        }
+      }
+
+      // Speak the text using SpeechSynthesis
+      function speakText(text) {
+        return new Promise((resolve) => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          speechSynthesis.speak(utterance);
+          utterance.onend = resolve;
+        });
+      }
+
+      // Start the quiz
+      async function startQuiz() {
+        const category = document.getElementById("quizCategory").value;
+        await loadQuestions(category); // Load questions when starting the quiz
+        if (questions.length > 0) {
+          currentQuestionIndex = 0; // Reset index when starting a new quiz
+          document.getElementById("buttons").style.display = "none"; // Hide buttons at the start
+          nextQuestion();
+        }
+      }
+
+      // Display the next question
+      function nextQuestion() {
+        if (currentQuestionIndex < questions.length) {
+          let questionText = questions[currentQuestionIndex].question;
+          document.getElementById("question").innerText = questionText;
+          document.getElementById("userAnswer").innerText = ""; // Clear previous user answer
+          document.getElementById("result").innerText = ""; // Clear previous result
+          document.getElementById("correctAnswer").innerText = ""; // Clear correct answer
+          document.getElementById("explanation").innerText = ""; // Clear explanation
+
+          // Speak the question and then wait for 2 seconds before listening
+          speakText(questionText).then(() => {
+            setTimeout(() => {
+              listenForAnswer();
+            }, 2000); // 2-second pause
+          });
+        } else {
+          endQuiz();
+        }
+      }
+
+      // Listen for the answer using Speech Recognition
+      function listenForAnswer() {
+        const recognition = new (window.SpeechRecognition ||
+          window.webkitSpeechRecognition)();
+        recognition.lang = "en-US";
+        recognition.start();
+
+        let answerTimeout = setTimeout(() => {
+          recognition.stop();
+          document.getElementById("userAnswer").innerText =
+            "Time's up! No answer given.";
+
+          // Load the next question after displaying the timeout message
+          setTimeout(() => {
+            currentQuestionIndex++; // Increment the question index
+            nextQuestion(); // Load the next question
+          }, 5000);
+        }, 10000); // 10 seconds to answer
+
+        recognition.onresult = function (event) {
+          clearTimeout(answerTimeout);
+          const spokenAnswer = event.results[0][0].transcript.toLowerCase();
+          document.getElementById("userAnswer").innerText =
+            "You said: " + spokenAnswer;
+          checkAnswer(spokenAnswer);
+        };
+
+        recognition.onerror = function (event) {
+          clearTimeout(answerTimeout);
+          console.error("Error occurred in speech recognition: " + event.error);
+          document.getElementById("userAnswer").innerText =
+            "Error recognizing your answer.";
+          // Load the next question after showing error message
+          setTimeout(() => {
+            currentQuestionIndex++;
+            nextQuestion();
+          }, 7000);
+        };
+      }
+
+      // Check the user's answer
+      function checkAnswer(spokenAnswer) {
+        const correctAnswer =
+          questions[currentQuestionIndex].answer.toLowerCase();
+        const explanation = questions[currentQuestionIndex].explanation;
+
+        // Display correct answer and explanation
+        document.getElementById("correctAnswer").innerText =
+          "Correct Answer: " + correctAnswer;
+        document.getElementById("explanation").innerText =
+          "Explanation: " + explanation;
+
+        // Speak the correct answer and explanation
+        speakText(correctAnswer).then(() => {
+          return speakText(explanation);
+        });
+
+        if (spokenAnswer === correctAnswer) {
+          document.getElementById("result").innerText = "Correct!";
+        } else {
+          document.getElementById("result").innerText = "Incorrect!";
+        }
+
+        // Load the next question after a delay
+        setTimeout(() => {
+          currentQuestionIndex++; // Increment the question index
+          nextQuestion(); // Load the next question
+        }, 5000); // 5 seconds delay before next question
+      }
+
+      // Repeat the quiz
+      function repeatQuiz() {
+        currentQuestionIndex = 0; // Reset index
+        nextQuestion();
+      }
+
+      // End the quiz
+      function endQuiz() {
+        document.getElementById("question").innerText = "Quiz finished!";
+        document.getElementById("buttons").style.display = "none"; // Hide buttons at the end
+      }
+
+      // Event listeners
+      document.getElementById("startQuiz").addEventListener("click", startQuiz);
+      document
+        .getElementById("repeatQuiz")
+        .addEventListener("click", repeatQuiz);
+      document.getElementById("endQuiz").addEventListener("click", endQuiz);
+    </script>
+  </body>
+</html>
